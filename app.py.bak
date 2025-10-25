@@ -5,53 +5,6 @@ from datetime import datetime, timedelta
 import json, os, time
 import logging
 
-# --- Small UX polish: calming background gradient + centered emoji header ---
-CALMING_CSS = """
-<style>
-/* subtle vertical gradient background that is light and demo-friendly */
-body {
-  background: linear-gradient(180deg, #f5f7fa 0%, #eef2f7 50%, #f8fbff 100%);
-}
-/* center the header and add some breathing space */
-.stApp > header { display: none; } /* hide default header to reduce clutter */
-.header-center {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 0;
-}
-.header-emoji {
-  font-size: 36px;
-  transform: translateY(2px);
-}
-.header-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.card {
-  background: rgba(255,255,255,0.6);
-  padding: 10px 16px;
-  border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(10,15,30,0.04);
-}
-</style>
-"""
-st.markdown(CALMING_CSS, unsafe_allow_html=True)
-
-st.markdown(
-    """
-    <div class="header-center card">
-      <div class="header-emoji">🧘‍♂️</div>
-      <div>
-        <div class="header-title">MindMate — Calm, private mood assistant</div>
-        <div style="font-size:12px;color:#334155">Short text check-ins • Local-only storage</div>
-      </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
 # --- Logging setup for debugging during demo ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("mindmate")
@@ -305,8 +258,7 @@ for key, default in {
     "hf_pipe": None,
     "start_breathing": False,
     "show_journal": False,
-    "profile": None,
-    "seen_onboarding": False
+    "profile": None
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -314,21 +266,6 @@ for key, default in {
 # Load profile into session_state on start
 if st.session_state.get("profile") is None:
     st.session_state.profile = load_profile()
-
-# ------------- Onboarding modal (first-time users) -------------
-if not st.session_state.get("seen_onboarding", False):
-    try:
-        with st.modal("Welcome to MindMate — Quick demo"):
-            st.markdown("**Welcome!** MindMate detects mood from short text check-ins, stores your entries locally, and suggests small coping steps.")
-            st.write("- Type or paste how you feel, then click **Analyze**.")
-            st.write("- Edit the summary or download it from the Export section.")
-            st.info("This is a demo — not a medical device. If you're in crisis, contact local emergency services.")
-            if st.button("Got it — start using MindMate"):
-                st.session_state["seen_onboarding"] = True
-    except Exception:
-        # If st.modal isn't available in this Streamlit version, fall back to a simple info box
-        st.info("Welcome! Type your feelings, click Analyze, and your entries will be stored locally.")
-        st.session_state["seen_onboarding"] = True
 
 # ---------- UI & Layout ----------
 st.set_page_config(page_title="MindMate — MVP", page_icon="🧠", layout="wide", initial_sidebar_state="expanded")
@@ -412,7 +349,6 @@ with st.sidebar:
 
 # ---------- Main content ----------
 # 1) Input
-st.markdown("---")
 st.header("1) Input")
 st.write("Write briefly how you feel right now (one or two sentences is fine).")
 
@@ -442,20 +378,6 @@ if submitted:
             st.metric(f"Detected ({src})", f"{lbl.upper()}  ({score:.2f})")
         else:
             st.metric(f"Detected ({src})", lbl.upper())
-
-        # contextual polished messages & small animation
-        if lbl:
-            lname = str(lbl).lower()
-            if lname in ["sadness", "anger/sadness"]:
-                st.info("I see you're feeling low — small steps can help. Try one suggestion on the right.")
-            elif lname in ["neutral", "positive"]:
-                st.info("You're fairly neutral — small habits keep momentum going.")
-            elif lname == "joy":
-                st.success("Nice — that sounds positive! Small wins matter.")
-                try:
-                    st.balloons()
-                except Exception:
-                    pass
 
     # personalized greeting
     name = st.session_state.profile.get("name","").strip()
@@ -823,7 +745,3 @@ if st.button("Wipe local mood_history.json (delete file)"):
     else:
         st.info("No mood_history.json file found (already empty).")
 st.caption("This prototype is for demo only and not a medical device.")
-
-# small footer
-st.markdown("---")
-st.markdown("<div style='text-align:center; font-size:12px; color:#64748b;'>Made with care • Local-only demo • Good for quick check-ins</div>", unsafe_allow_html=True)

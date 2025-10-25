@@ -1,5 +1,11 @@
-venv/
+# Python
 __pycache__/
+*.pyc
+venv/
+env/
+.venv/
+# Local data (privacy)
 mood_history.json
-.streamlit/
+user_profile.json
+# OS files
 .DS_Store
