@@ -1,7 +1,7 @@
 # app.py
 import streamlit as st
 from datetime import datetime
-import json, os
+import json, os, time
 
 # --- VADER setup ---
 try:
@@ -10,22 +10,9 @@ try:
     from nltk.sentiment.vader import SentimentIntensityAnalyzer
     sid = SentimentIntensityAnalyzer()
     VADER_AVAILABLE = True
-except Exception as e:
+except Exception:
     sid = None
     VADER_AVAILABLE = False
-
-# --- Simple keyword fallback if VADER not available ---
-KEYWORD_EMO_MAP = {
-    "sad": "sadness",
-    "depress": "sadness",
-    "happy": "joy",
-    "joy": "joy",
-    "angry": "anger",
-    "anxious": "fear",
-    "anxiety": "fear",
-    "stressed": "stress",
-    "stress": "stress",
-}
 
 # --- Storage ---
 HISTORY_FILE = "mood_history.json"
@@ -40,33 +27,51 @@ def save_history(history):
     with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
 
+# --- Mapping: compound -> simple emotion label ---
 def map_compound_to_label(compound):
-    # VADER compound -> simple label mapping for demo
-    if compound >= 0.5:
+    """
+    Map VADER compound score (-1..1) to simple labels.
+    Tweak thresholds as needed.
+    """
+    if compound >= 0.6:
         return "joy"
-    if 0.1 <= compound < 0.5:
+    if 0.2 <= compound < 0.6:
         return "positive"
-    if -0.1 < compound < 0.1:
+    if -0.2 < compound < 0.2:
         return "neutral"
-    if -0.5 < compound <= -0.1:
-        return "sadness/concern"
-    return "sadness/anger"
+    if -0.6 < compound <= -0.2:
+        return "sadness"
+    return "anger/sadness"
 
-def keyword_fallback(text):
-    txt = text.lower()
-    for k, lab in KEYWORD_EMO_MAP.items():
-        if k in txt:
-            return lab
-    return "neutral"
+# --- Suggestions: short one-liners for quick demo ---
+SUGGESTIONS = {
+    "joy": [
+        "Celebrate a small win — tell a friend or jot it down.",
+        "Keep this momentum — do one action you enjoyed again."
+    ],
+    "positive": [
+        "Nice — take a 1-minute pause to appreciate it.",
+        "Try a short note of what you did well today."
+    ],
+    "neutral": [
+        "Would you like a short breathing exercise (90s)?",
+        "Set one small goal for the next hour."
+    ],
+    "sadness": [
+        "Write down 3 small things you’re grateful for right now.",
+        "Take a 10-minute walk and breathe fresh air."
+    ],
+    "anger/sadness": [
+        "Try a 2-minute breathing cycle: 4s inhale, 6s exhale (repeat).",
+        "Step away for a walk or splash cold water on your face."
+    ]
+}
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="MindMate — MVP", page_icon="🧠")
-st.title("MindMate — MVP — Emotion Detection (VADER)")
+st.title("MindMate — MVP — Emotion Label + Suggestions")
 
-st.markdown("""
-Type how you're feeling and press **Analyze**.  
-*This demo uses NLTK VADER (local). If VADER isn't available, a simple keyword fallback runs instead.*
-""")
+st.markdown("Type what you're feeling and press **Analyze**. The app shows a simple emotion label and two quick suggestions. Privacy: entries saved locally.")
 
 with st.form("mood_form"):
     user_text = st.text_area("How are you feeling right now?", placeholder="I'm feeling anxious about exams...")
@@ -76,57 +81,70 @@ if submitted:
     if not user_text.strip():
         st.warning("Please type something before analyzing.")
     else:
-        st.subheader("Raw analysis")
-
-        # VADER path
+        # --- analyze with VADER if available ---
         if VADER_AVAILABLE and sid is not None:
             scores = sid.polarity_scores(user_text)
-            st.write("VADER scores:", scores)
             compound = scores.get("compound", 0.0)
             label = map_compound_to_label(compound)
-            st.markdown(f"**Mapped label (from compound):** `{label}` (compound = {compound})")
+            st.subheader("Detected emotion")
+            st.markdown(f"**{label.upper()}**  — (compound = {compound:.2f})")
+            st.write("VADER raw scores:", scores)
         else:
-            st.info("VADER not available — using simple keyword fallback.")
-            label = keyword_fallback(user_text)
-            scores = None
-            st.markdown(f"**Fallback label:** `{label}`")
-
-        # provide quick suggestions
-        st.subheader("Suggestions (simple demo)")
-        SUGGESTIONS = {
-            "sadness": ["Try writing 3 things you are grateful for.", "Go for a short walk."],
-            "joy": ["Celebrate a small win — share it with a friend!", "Keep a positive note for tomorrow."],
-            "positive": ["Nice — keep your momentum.", "Consider a 1-minute breathing break."],
-            "neutral": ["Would you like a short breathing exercise?", "Try writing one small goal for the day."],
-            "sadness/concern": ["Try a grounding exercise: name 5 things you see.", "Consider journaling for 5 minutes."],
-            "sadness/anger": ["Try a 2-minute breathing exercise: 4s inhale, 6s exhale.", "Take a short walk and come back later."]
-        }
-        # pick suggestions based on label (map similar labels)
-        key = label
-        if key not in SUGGESTIONS:
-            if "sadness" in key:
-                key = "sadness"
-            elif "joy" in key or "positive" in key:
-                key = "joy"
+            # very simple fallback: keyword mapping
+            txt = user_text.lower()
+            if any(k in txt for k in ["sad", "depress", "down", "unmotiv"]):
+                label = "sadness"
+            elif any(k in txt for k in ["happy", "glad", "great"]):
+                label = "joy"
+            elif any(k in txt for k in ["angry", "furious", "mad"]):
+                label = "anger/sadness"
             else:
-                key = "neutral"
-        for s in SUGGESTIONS[key]:
+                label = "neutral"
+            st.subheader("Detected emotion (fallback)")
+            st.markdown(f"**{label.upper()}**")
+
+        # --- show top 2 suggestions ---
+        st.subheader("Top suggestions")
+        suggestions = SUGGESTIONS.get(label, SUGGESTIONS["neutral"])
+        # show only top 2
+        for s in suggestions[:2]:
             st.write("- " + s)
 
-        # Save to history
+        # --- Start breathing button ---
+        st.markdown("**Quick intervention**")
+        if st.button("Start 90s breathing guide"):
+            # Simple guided breathing: show progress bar and pacing text
+            progress = st.progress(0)
+            instruction = st.empty()
+            total_seconds = 90
+            for i in range(total_seconds + 1):
+                progress.progress(i / total_seconds)
+                # cycle phases roughly: inhale(4s) hold(2s) exhale(6s) repeated
+                phase = i % 12
+                if phase < 4:
+                    instruction.text(f"Inhale — 4s ({4-phase}s left)")
+                elif phase < 6:
+                    instruction.text("Hold — 2s")
+                else:
+                    instruction.text(f"Exhale — 6s ({12-phase}s left)")
+                time.sleep(1)
+            instruction.text("Done — how do you feel now?")
+            st.success("Nice! Try analyzing again to see if your detected emotion changes.")
+
+        # --- Save to local history ---
         history = load_history()
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "text": user_text,
             "label": label,
-            "vader_scores": scores
+            "vader_scores": scores if VADER_AVAILABLE and sid is not None else None
         }
         history.append(entry)
         history = history[-200:]
         save_history(history)
-        st.success("Saved this entry locally to mood_history.json")
+        st.info("Saved this entry locally to mood_history.json")
 
-# Mood history visualization (simple)
+# --- show recent history ---
 st.markdown("---")
 st.subheader("Recent entries")
 history = load_history()
@@ -137,15 +155,3 @@ if history:
     st.write(df[['date', 'label', 'text']].tail(8))
 else:
     st.write("No history yet — submit an analysis to populate this list.")
-
-# Helpful note about VADER compound thresholds
-st.markdown("""
-**VADER compound score guide (demo mapping):**
-- `>= 0.5` → strong positive (joy)
-- `0.1–0.5` → mildly positive
-- `-0.1–0.1` → neutral
-- `-0.5–-0.1` → mildly negative / concern
-- `< -0.5` → strong negative (sadness / anger)
-
-*This mapping is for demonstration; real mental-health deployment needs clinical validation.*
-""")
