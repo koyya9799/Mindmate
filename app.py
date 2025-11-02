@@ -161,9 +161,9 @@ def render_suggestion(suggestion, tone, name):
     display_name = name.strip() if name else ""
     if tone == "encouraging":
         if display_name:
-            return f"Hey {display_name} — {suggestion} "
+            return f"Hey {display_name} — {suggestion} 💪"
         else:
-            return f"{suggestion} "
+            return f"{suggestion} 💪"
     elif tone == "neutral":
         return suggestion
     elif tone == "pragmatic":
@@ -330,12 +330,7 @@ if not st.session_state.get("seen_onboarding", False):
         st.info("Welcome! Type your feelings, click Analyze, and your entries will be stored locally.")
         st.session_state["seen_onboarding"] = True
 
-# ---------- UI & Layout ----------
-st.set_page_config(page_title="MindMate — MVP", page_icon="", layout="wide", initial_sidebar_state="expanded")
-st.markdown("<h1 style='margin:0;'> MindMate — Personalized Mental Health Assistant</h1>", unsafe_allow_html=True)
-st.write("A calm, privacy-first demo. Your data remains local.")
-st.info("Demo tip: If the Hugging Face model download is slow, keep it disabled. Use 'Seed demo history' to quickly populate data.")
-st.write("")
+
 
 # Sidebar: profile + model + controls
 with st.sidebar:
